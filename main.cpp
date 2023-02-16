@@ -12,7 +12,7 @@
 
 #include "omp.h"
 
-const int nThreads = omp_get_num_threads();
+const int nThreads = omp_get_max_threads();
 const int nParticles = 1e+5;
 const int nParThreads = nParticles / nThreads;
 const int nMod = nParticles % nThreads;
@@ -39,7 +39,7 @@ void evalFuncEtaTheta(double *result, double _theta, double _eta) {
 
 void montecarlo(int N, int seed) {
   int nInside = 0;
-  double theta, eta, phi, eval, res, fNorm = 1. / 4.;
+  double /*theta, eta, phi, */ eval, res, fNorm = 1. / 4.;
   std::cout << "Seed: " << seed << std::endl;
   std::mt19937 randgen(seed);
   while (nInside < N) {
@@ -69,17 +69,16 @@ int main() {
   tree->Branch("phi", &phi, "phi/D");
   tree->Branch("eta", &eta, "eta/D");
 
-  std::cout << "threds num: " << nThreads << std::endl;
-#pragma omp parallel for
-  for (int i = 0; i < nThreads; ++i) {
-    if (i == nThreads - 1) {
-      montecarlo(nParThreads + nMod, i + 1);
-      continue;
-    }
-    montecarlo(nParThreads, i + 1);
+#pragma omp parallel
+  {
+#pragma omp single
+    { std::cout << "Threads num: " << omp_get_num_threads() << std::endl; }
+    montecarlo(
+        nParThreads +
+            (omp_get_thread_num() == omp_get_num_threads() - 1 ? nMod : 0),
+        omp_get_thread_num() + 1);
   }
 
-  // Write the TTree and close the file
   file->Write();
   file->Close();
 
